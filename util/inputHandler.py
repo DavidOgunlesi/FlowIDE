@@ -1,0 +1,12 @@
+
+from tkinter import LEFT
+
+
+ESCAPE = 27
+UP = 259
+DOWN = 258
+LEFT = 260
+RIGHT = 261
+ENTER = 10
+BACKSPACE = 8
+TAB = 9
