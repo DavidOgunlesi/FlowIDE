@@ -1,18 +1,14 @@
 import curses
 import time
 from curses import wrapper
-#from curses.textpad import Textbox, rectangle
 import util.inputHandler as input
 import util.fileHandler as file
 import re
 from pygments import highlight
 from pygments.lexers import PythonLexer
 from util.formatters import TokenFormatter
-from pygments.styles import get_style_by_name
 import json
-import sys
 import traceback
-from util.math import clamp
 TAB_SPACE = "   "
 
 def countTabSpaces(string):
@@ -117,6 +113,7 @@ def main(stdscr):
         style = json.load(f)
 
     curses.curs_set(2)
+    curses.mousemask(1)
     #lines = ["\"hello\" + 'world' text!","asdasdasd","asdasdasd"]
     lines = file.readFileLines('main.py')
     stdscr.clear()
@@ -145,6 +142,10 @@ def main(stdscr):
             #pad.clear()
             #pad.refresh(scrolly, 1, 0, 0, curses.LINES-1, curses.COLS-1)
             continue
+        if key == input.MOUSE:
+            _, x, y, _, _ = curses.getmouse()
+            maxLine = len(lines[min(len(lines), relY)])
+            x = max(min(x, maxLine) ,0)
 
         if key == input.LEFT:
             x -=1
