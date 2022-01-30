@@ -3,6 +3,7 @@ import time
 from curses import wrapper
 import util.inputHandler as input
 import util.fileHandler as file
+from util.math import clamp
 import re
 from pygments import highlight
 from pygments.lexers import guess_lexer_for_filename
@@ -140,8 +141,15 @@ def renderLineNumbers(scr, color):
         s = str(i).rjust(LINE_NUM_WIDTH-LINE_NUM_PAD, ' ')
         scr.addstr(i, 0, f'{s}|',  color)
 
+def renderScrollBar(scr, scrolly, maxScrolly, color):
+    scr.erase()
+    i = int((scrolly/maxScrolly)*curses.LINES-1)
+    i = clamp(i, 0, curses.LINES-2)
+    scr.addstr(i, 0, '█', color)
+    scr.refresh()
+
 def renderLines(scr, lines, scrolly, lexer, formatter, style, bgCol):
-    for lineNum in range(scrolly,scrolly + curses.LINES):
+    for lineNum in range(scrolly,min(len(lines) ,scrolly + curses.LINES)):
         line = " " + lines[lineNum]
         highlightedText = highlight(line, lexer, formatter)
         stringArrToParse = re.split(f'\[{formatter.hash}|{formatter.hash}\]', highlightedText)
@@ -171,8 +179,11 @@ def main(stdscr):
     ########
     bkgd = curses.COLOR_BLACK
     curses.init_pair(100, curses.COLOR_WHITE, curses.COLOR_BLACK)
-    BACKGROUND = curses.color_pair(100)
-
+    COL_DEFAULT = curses.color_pair(100)
+    curses.init_pair(101, curses.COLOR_WHITE, 235)
+    COL_OFFDARK = curses.color_pair(101)
+    curses.init_pair(102,245, curses.COLOR_BLACK)
+    COL_DIMTEXT = curses.color_pair(102)
     #Load style
     with open('styles/defualt.json', 'r') as f:
         style = json.load(f)
@@ -181,20 +192,24 @@ def main(stdscr):
     curses.mousemask(1)
     stdscr.clear()
     stdscr.nodelay(True)
-    stdscr.bkgd(' ', BACKGROUND)  
+    stdscr.bkgd(' ', COL_DEFAULT)  
 
     #Line number display
     line_num_pad = curses.newpad(MAX_FILE_LENGTH, LINE_NUM_WIDTH)
-    line_num_pad.bkgd(' ', BACKGROUND)
-    renderLineNumbers(line_num_pad, BACKGROUND)
+    line_num_pad.bkgd(' ', COL_DIMTEXT)
+    renderLineNumbers(line_num_pad,  COL_DIMTEXT)
 
     #Main editable text content pad
     content_display_pad = curses.newpad(MAX_FILE_LENGTH,curses.COLS-1)
-    content_display_pad.bkgd(' ', BACKGROUND)   
+    content_display_pad.bkgd(' ', COL_DEFAULT)   
+
+    #Scroll bar window
+    scroll_display_win = curses.newwin(curses.LINES,1,0,curses.COLS-1) 
+    scroll_display_win.bkgd(' ', COL_OFFDARK)
 
     #Debug Window
     debug_win = curses.newwin(1,50,0,70) 
-    debug_win.bkgd(' ', BACKGROUND)  
+    debug_win.bkgd(' ', COL_DEFAULT)  
 
     #Load File and Init formatter with Lexer
     filePath = 'main.py'
@@ -228,12 +243,13 @@ def main(stdscr):
         #Render only when we need to
         if renderUpdate:
             renderLines(content_display_pad, lines,scrolly, lexer, formatter, style, bkgd)
+            renderScrollBar(scroll_display_win, relY, len(lines)-1, COL_OFFDARK)
         renderUpdate = False
 
         #renderCursor
         stdscr.move(y,x+LINE_NUM_WIDTH)
 
-        content_display_pad.refresh(scrolly, 1, 0, LINE_NUM_WIDTH, curses.LINES-1, curses.COLS-1)
+        content_display_pad.refresh(scrolly, 1, 0, LINE_NUM_WIDTH, curses.LINES-1, curses.COLS-3)
         line_num_pad.refresh(scrolly, 0, 0, 0, max(0,min(curses.LINES-1,len(lines)-scrolly)), LINE_NUM_WIDTH)
         
         #debug_win.erase()
