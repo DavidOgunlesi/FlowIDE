@@ -1,0 +1,8 @@
+{
+    ".Comment": 8,
+    ".Keyword": 2,
+    ".Name": 15,
+    ".Name.Function": 4,
+    ".Name.Class": 5,
+    ".String": 41
+}
