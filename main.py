@@ -85,7 +85,7 @@ def defaultTextEntry(key,lines,x, y, relY):
         x += len(currStr)
     return lines, x, y, relY
 
-def renderLines(stdscr, lines, formatter, style):
+def renderLines(stdscr, lines, formatter, style, bgCol):
     for lineNum in range(0,len(lines)):
         line = " " + lines[lineNum]
         highlightedText = highlight(line, PythonLexer(), formatter)
@@ -104,14 +104,15 @@ def renderLines(stdscr, lines, formatter, style):
                         if currSearchKey in style:
                             col = style[currSearchKey]
                 #Convert token to curses Color
-                curses.init_pair(col+1, col, curses.COLOR_BLACK)
+                curses.init_pair(col+1, col, bgCol)
             else:
                 stdscr.addstr(lineNum, skip, el, curses.color_pair(col+1))
                 skip += len(el)
 
 
 def main(stdscr):
-
+    bkgd = curses.COLOR_BLUE
+    curses.init_pair(100, curses.COLOR_WHITE, curses.COLOR_BLUE)
     with open('styles/defualt.json', 'r') as f:
         style = json.load(f)
 
@@ -123,14 +124,28 @@ def main(stdscr):
     debug_win = curses.newwin(1,50,0,70)
     formatter = TokenFormatter()
     pad = curses.newpad(1000,curses.COLS-1)
+    stdscr.bkgd(' ', curses.color_pair(100))  
+    pad.bkgd(' ', curses.color_pair(100))    
+    debug_win.bkgd(' ', curses.color_pair(100))    
     scrolly = 0
     x, y = 0, 0
     while True:
+
         relY = y+scrolly
         try: #try block needed if nodelay is set to True
             key = stdscr.getch()
         except:
             key = None
+
+        if key == curses.KEY_RESIZE:
+            #curses.resizeterm(*stdscr.getmaxyx())
+            print(curses.LINES-1, curses.COLS-1)
+            stdscr.clear()
+            stdscr.refresh()
+            #pad.clear()
+            #pad.refresh(scrolly, 1, 0, 0, curses.LINES-1, curses.COLS-1)
+            continue
+
         if key == input.LEFT:
             x -=1
         elif key == input.RIGHT:
@@ -169,14 +184,14 @@ def main(stdscr):
         x = max(min(x, maxLine) ,0)
         #pad.erase()
         #pad.refresh(0, 0, 0, 0, curses.LINES-1, curses.COLS-1)
-        renderLines(pad, lines, formatter, style)
+        renderLines(pad, lines, formatter, style, bkgd)
         #renderCursor
         pad.refresh(scrolly, 1, 0, 0, curses.LINES-1, curses.COLS-1)
         stdscr.move(y,x)
         debug_win.erase()
-        debug_win.addstr(f"xy:[{x},{y}] scrolly: {scrolly} relY: {relY}")
+        debug_win.addstr(f"xy:[{x},{y}] scrolly: {scrolly} relY: {relY}", curses.color_pair(100))
         debug_win.refresh()
-    stdscr.getch()
+    #stdscr.getch()
 
 
 if __name__ == '__main__':
@@ -184,7 +199,7 @@ if __name__ == '__main__':
       wrapper(main)
     except Exception as e:
         tb = traceback.format_exc()
-        crash = [str(tb)]
+        crash = str(tb)
         print(crash)
         timeX=str(time.time())
         with open("crashlogs/CRASH-"+timeX+".txt","w") as crashLog:
