@@ -20,6 +20,7 @@ LINE_NUM_WIDTH = 7
 LINE_NUM_PAD = 2
 NAVIGATION_MENU_HEIGHT = 2
 NAVIGATION_MENU_BUTTON_SPACING = 2
+NAVIGATION_DROPDOWN_MENU_HEIGHT = 30
 quit = False
 
 def countTabSpaces(string):
@@ -202,6 +203,24 @@ def renderNavgationBar(scr, navbar, def_color, selected_button = None, sel_attr 
                 scr.addstr(i, l, text, def_color | sel_attr)
     scr.refresh()
 
+def renderDropDown(stdscr, nav_win, navbar, selectedButton, color):
+    global NAVIGATION_MENU_HEIGHT
+    subItems = selectedButton.getDropdownItems()
+    (t,l,b,r) = navbar.getButtonRectFromName(selectedButton.name)
+    #print(f"{NAVIGATION_DROPDOWN_MENU_HEIGHT}, {len(subItems)},{NAVIGATION_MENU_HEIGHT},{l}")#t+1+len(subItems)
+    dpDwn_win = curses.newwin(NAVIGATION_MENU_HEIGHT+len(subItems),5,NAVIGATION_MENU_HEIGHT-1,0)
+    #NAVIGATION_MENU_HEIGHT = 2 + len(subItems)+1
+    #dpDwn_win = curses.newwin(NAVIGATION_DROPDOWN_MENU_HEIGHT, len(subItems),NAVIGATION_MENU_HEIGHT,l)
+    dpDwn_win.bkgd(' ', color)
+    for i, subBtn in enumerate(subItems):
+        dpDwn_win.addstr(t+1+i,l,subBtn.name, color) 
+    dpDwn_win.refresh()
+    #stdscr.clear()
+    #renderNavgationBar(nav_win, navbar, color, selectedButton)
+    return dpDwn_win
+
+        
+
 def ProcessNavActions(buttonName : str):
     pass
 
@@ -246,6 +265,8 @@ def main(stdscr):
     
     #Set up navbar buttons
     fileBtn = nav.DropDownButton("File", ProcessNavActions)
+    fileBtn.addItem(nav.Button("New File", ProcessNavActions))
+
     editBtn = nav.DropDownButton("Edit", ProcessNavActions)
     selectionBtn = nav.DropDownButton("Selection", ProcessNavActions)
     viewBtn = nav.DropDownButton("View", ProcessNavActions)
@@ -270,6 +291,7 @@ def main(stdscr):
     #################
     #Main Render Loop
     #################
+    currentDropDownMenu = None
     scrollx, scrolly = 0, 0
     x, y = 0, 0
     renderUpdate = True
@@ -287,8 +309,9 @@ def main(stdscr):
         if key == input.MOUSE:
             _, x, y, _, _ = curses.getmouse()
             if (selectedButton := navbar.getItemFromPos((x, y))) != None:
-                print(selectedButton.name + "\n")
                 renderNavgationBar(nav_win, navbar, COL_OFFDARK, selectedButton)
+                if isinstance(selectedButton, nav.DropDownButton):
+                    currentDropDownMenu = renderDropDown(stdscr,nav_win, navbar, selectedButton, COL_OFFDARK)
             x -= LINE_NUM_WIDTH
             y -= NAVIGATION_MENU_HEIGHT
 
@@ -314,6 +337,8 @@ def main(stdscr):
         content_display_pad.refresh(scrolly,scrollx + 1, NAVIGATION_MENU_HEIGHT, LINE_NUM_WIDTH, curses.LINES-1, curses.COLS-3)
         line_num_pad.refresh(scrolly, 0, NAVIGATION_MENU_HEIGHT, 0, max(0,min(curses.LINES-1,len(lines)-scrolly)), LINE_NUM_WIDTH)
         nav_win.refresh()
+        #if currentDropDownMenu != None:
+            #currentDropDownMenu.refresh()
 
         stdscr.move(min(curses.LINES-1,y+NAVIGATION_MENU_HEIGHT),min(curses.COLS-1,x+LINE_NUM_WIDTH))
         #debug_win.erase()
