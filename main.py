@@ -107,8 +107,8 @@ def renderLines(stdscr, lines, formatter, style, bgCol):
 
 
 def main(stdscr):
-    bkgd = curses.COLOR_BLUE
-    curses.init_pair(100, curses.COLOR_WHITE, curses.COLOR_BLUE)
+    bkgd = curses.COLOR_BLACK
+    curses.init_pair(100, curses.COLOR_WHITE, bkgd)
     with open('styles/defualt.json', 'r') as f:
         style = json.load(f)
 
