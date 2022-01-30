@@ -1,6 +1,7 @@
 import curses
 import time
 from curses import wrapper
+from curses.textpad import rectangle
 import util.inputHandler as input
 import util.fileHandler as file
 from util.math import clamp
@@ -15,8 +16,9 @@ TAB_SPACE = "   "
 MAX_FILE_LENGTH = 10000
 LINE_NUM_WIDTH = 7
 LINE_NUM_PAD = 2
+NAVIGATION_MENU_HEIGHT = 2
+NAVIGATION_MENU_BUTTON_SPACING = 1
 quit = False
-
 
 def countTabSpaces(string):
     i = 0
@@ -34,7 +36,7 @@ def countTabSpaces(string):
         i+=1
     return tabCount
 
-def HandleInput(scr, key, lines, x, y, scrolly, relY, renderUpdate):
+def HandleInput(scr, key, lines, x, y, scrollx, scrolly, relX, relY, renderUpdate):
     global quit
     if key == curses.KEY_RESIZE:
         print(curses.LINES-1, curses.COLS-1)
@@ -45,13 +47,20 @@ def HandleInput(scr, key, lines, x, y, scrolly, relY, renderUpdate):
 
     if key == input.MOUSE:
         _, x, y, _, _ = curses.getmouse()
-        maxLine = len(lines[min(len(lines), relY)])
-        x = max(min(x, maxLine) ,0)
+        x-= LINE_NUM_WIDTH
+        y-=NAVIGATION_MENU_HEIGHT
 
     if key == input.LEFT:
         x -=1
+        if x <= 0 and scrollx > 0:
+            scrollx-=1
+            renderUpdate = True
     elif key == input.RIGHT:
-        x +=1
+        if x >= curses.COLS-1 - LINE_NUM_WIDTH:
+            scrollx+=1
+            renderUpdate = True
+        else:
+            x +=1
     elif key == input.UP:
         y -=1
         if y > len(lines)-1:
@@ -60,13 +69,13 @@ def HandleInput(scr, key, lines, x, y, scrolly, relY, renderUpdate):
             scrolly-=1
             renderUpdate = True
     elif key == input.DOWN:
-        if y >= curses.LINES-1:
+        if y >= curses.LINES-1-NAVIGATION_MENU_HEIGHT:
             scrolly+=1
             renderUpdate = True
         else:
             y +=1
     elif key == input.ENTER:
-        lines, x, y, relY, scrolly = enter(lines, x, y, relY, scrolly)
+        lines, x, y, relX, relY, scrolly = enter(lines, x, y, relX, relY, scrolly)
         renderUpdate = True
     elif key == input.ESCAPE:
         #exit program
@@ -74,15 +83,15 @@ def HandleInput(scr, key, lines, x, y, scrolly, relY, renderUpdate):
     elif key == input.BACKSPACE:
         if x == 0 and y == 0:
             curses.beep()
-        lines, x, y, relY = backspace(lines, x, y, relY)
+        lines, x, y, relX, relY = backspace(lines, x, y,relX, relY)
         renderUpdate = True
     elif key >= 0 and key <= 256:
-        lines, x, y, relY = defaultTextEntry(key, lines, x, y, relY)
+        lines, x, y, relX, relY = defaultTextEntry(key, lines, x, y, relX, relY)
         renderUpdate = True
 
-    return lines, x, y, scrolly, relY, renderUpdate
+    return lines, x, y, scrollx, scrolly, relX, relY, renderUpdate
 
-def enter(lines,x, y, relY, scrolly):
+def enter(lines,x, y, relX, relY, scrolly):
     #create new lines if needed
     lineRemainder = lines[relY][x:] 
     lines.insert(relY,lines[relY][:x])
@@ -94,12 +103,12 @@ def enter(lines,x, y, relY, scrolly):
     else:
         lines[relY+1] = lineRemainder
     #if cursor is at bottom
-    if y == curses.LINES-1:
+    if y == curses.LINES-1-NAVIGATION_MENU_HEIGHT:
         scrolly += 1
     y+=1
-    return lines, x, y, relY, scrolly
+    return lines, x, y, relX, relY, scrolly
 
-def backspace(lines,x, y, relY):
+def backspace(lines,x, y, relX, relY):
     #if we are somewhere in the middle of a line
     if x > 0:
         #If we have tab space on backspace, remove it entirely
@@ -120,9 +129,9 @@ def backspace(lines,x, y, relY):
         #Append line to previous line
         lines[relY] += line
         y-=1
-    return lines, x, y, relY
+    return lines, x, y, relX, relY
 
-def defaultTextEntry(key,lines,x, y, relY):
+def defaultTextEntry(key,lines,x, y, relX, relY):
     currStr = chr(key)
     if key == input.TAB:
         currStr = TAB_SPACE
@@ -134,7 +143,7 @@ def defaultTextEntry(key,lines,x, y, relY):
             #none insert mode
             lines[relY] = lines[relY][:x] + currStr + lines[relY][x:]
         x += len(currStr)
-    return lines, x, y, relY
+    return lines, x, y, relX, relY
 
 def renderLineNumbers(scr, color):
     for i in range(0,MAX_FILE_LENGTH):
@@ -144,12 +153,15 @@ def renderLineNumbers(scr, color):
 def renderScrollBar(scr, scrolly, maxScrolly, color):
     scr.erase()
     i = int((scrolly/maxScrolly)*curses.LINES-1)
-    i = clamp(i, 0, curses.LINES-2)
-    scr.addstr(i, 0, '█', color)
-    scr.refresh()
+    #i = clamp(i, 0, curses.LINES-2)
+    barSize  = int((curses.LINES*curses.LINES)/(curses.LINES+maxScrolly))
+    #barSize = int(barPercentSize*curses.LINES)
+    for y in range(0,barSize):
+        scr.addstr(clamp(i+y, 0, curses.LINES-2), 0, '█', color)
+    scr.refresh(0,0,NAVIGATION_MENU_HEIGHT-1,curses.COLS-1,curses.LINES-1,curses.COLS-1)
 
-def renderLines(scr, lines, scrolly, lexer, formatter, style, bgCol):
-    for lineNum in range(scrolly,min(len(lines) ,scrolly + curses.LINES)):
+def renderLines(scr, lines, scrollx, scrolly, lexer, formatter, style, bgCol):
+    for lineNum in range(scrolly,min(len(lines) ,scrolly + curses.LINES )):
         line = " " + lines[lineNum]
         highlightedText = highlight(line, lexer, formatter)
         stringArrToParse = re.split(f'\[{formatter.hash}|{formatter.hash}\]', highlightedText)
@@ -169,9 +181,17 @@ def renderLines(scr, lines, scrolly, lexer, formatter, style, bgCol):
                 #Convert token to curses Color
                 curses.init_pair(col+1, col, bgCol)
             else:
-                scr.addstr(lineNum, skip, el, curses.color_pair(col+1))
+                scr.addstr(lineNum,clamp(skip, scrollx,curses.COLS-LINE_NUM_WIDTH+scrollx), el, curses.color_pair(col+1))
                 skip += len(el)
 
+def renderNavgationBar(scr, menu_buttons,color):
+    offset = 0
+    for menu_btn in menu_buttons:
+        width = min(curses.COLS-1//len(menu_buttons), len(menu_btn) +NAVIGATION_MENU_BUTTON_SPACING*2)
+        #rectangle(scr, 0, 0, 1, 5)
+        #rectangle(stdscr, 1, 1, 5, 20)
+        scr.addstr(0, offset , menu_btn, color)
+        offset += width
 
 def main(stdscr):
     ########
@@ -204,56 +224,66 @@ def main(stdscr):
     content_display_pad.bkgd(' ', COL_DEFAULT)   
 
     #Scroll bar window
-    scroll_display_win = curses.newwin(curses.LINES,1,0,curses.COLS-1) 
+    scroll_display_win = curses.newpad(curses.LINES,1) 
     scroll_display_win.bkgd(' ', COL_OFFDARK)
+
+    #Navigation Window
+    nav_win = curses.newwin(NAVIGATION_MENU_HEIGHT-1, curses.COLS,0,0) 
+    nav_win.bkgd(' ', COL_OFFDARK)
+    renderNavgationBar(nav_win, ["File", "Edit", "Selection", "View", "Go", "Run", "Terminal", "Help"], COL_OFFDARK)
 
     #Debug Window
     debug_win = curses.newwin(1,50,0,70) 
     debug_win.bkgd(' ', COL_DEFAULT)  
 
     #Load File and Init formatter with Lexer
-    filePath = 'main.py'
+    #filePath ='testfiles/LongPythonProgram.py'#'main.py'
+    filePath ='testfiles/CProgram.c'
     lines = file.readFileLines(filePath)
     lexer = guess_lexer_for_filename(filePath, '\n'.join(lines))
     formatter = TokenFormatter()
     #################
     #Main Render Loop
     #################
-    scrolly = 0
+    scrollx, scrolly = 0, 0
     x, y = 0, 0
     renderUpdate = True
     while not quit:
         relY = y+scrolly
-
+        relX = x+scrollx
         #Key Inputs
         try: 
             key = stdscr.getch()
         except:
             key = None
 
-        lines, x, y, scrolly, relY, renderUpdate = HandleInput(stdscr, key, lines, x, y, scrolly, relY, renderUpdate)
+        lines, x, y, scrollx, scrolly, relX, relY, renderUpdate = HandleInput(stdscr, key, lines, x, y, scrollx, scrolly,relX, relY, renderUpdate)
 
         if y > len(lines)-1:
             curses.beep()
 
-        y = max(min(y, min(curses.LINES-1,len(lines)-1-scrolly)),0)
+        #y = max(min(y, min(curses.LINES-1,len(lines)-1-scrolly)),0)
+        y = clamp(y,0, min(curses.LINES-1,len(lines)-1-scrolly))
         maxLine = len(lines[min(len(lines)-1, relY)])
-        x = max(min(x, maxLine) ,0)
+        x = clamp(x,0, maxLine-scrollx) #max(min(x, maxLine) ,0)
 
         #Render only when we need to
         if renderUpdate:
-            renderLines(content_display_pad, lines,scrolly, lexer, formatter, style, bkgd)
+            renderLines(content_display_pad, lines, scrollx, scrolly, lexer, formatter, style, bkgd)
             renderScrollBar(scroll_display_win, relY, len(lines)-1, COL_OFFDARK)
         renderUpdate = False
+        #renderNavgationBar(nav_win, ["File", "Edit", "Selection", "View", "Go", "Run", "Terminal", "Help"], COL_OFFDARK)
 
         #renderCursor
-        stdscr.move(y,x+LINE_NUM_WIDTH)
+        #print(f"{curses.LINES-1} {curses.COLS-1} { y+NAVIGATION_MENU_HEIGHT} {x+LINE_NUM_WIDTH}")
 
-        content_display_pad.refresh(scrolly, 1, 0, LINE_NUM_WIDTH, curses.LINES-1, curses.COLS-3)
-        line_num_pad.refresh(scrolly, 0, 0, 0, max(0,min(curses.LINES-1,len(lines)-scrolly)), LINE_NUM_WIDTH)
-        
+        content_display_pad.refresh(scrolly,scrollx + 1, NAVIGATION_MENU_HEIGHT, LINE_NUM_WIDTH, curses.LINES-1, curses.COLS-3)
+        line_num_pad.refresh(scrolly, 0, NAVIGATION_MENU_HEIGHT, 0, max(0,min(curses.LINES-1,len(lines)-scrolly)), LINE_NUM_WIDTH)
+        nav_win.refresh()
+
+        stdscr.move(min(curses.LINES-1,y+NAVIGATION_MENU_HEIGHT),min(curses.COLS-1,x+LINE_NUM_WIDTH))
         #debug_win.erase()
-        #debug_win.addstr(f"xy:[{x},{y}] scrolly: {scrolly} relY: {relY}", curses.color_pair(100))
+        #debug_win.addstr(f"xy:[{x},{y}] scrollxy: {scrollx},{scrolly} relY: {relY}", curses.color_pair(100))
         #debug_win.refresh()
     #stdscr.getch()
 
