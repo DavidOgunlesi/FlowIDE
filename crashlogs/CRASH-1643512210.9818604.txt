@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "D:\CVPROJECTS\FlowIDE\main.py", line 177, in <module>
-    wrapper(main)
-  File "C:\Users\timid\AppData\Local\Programs\Python\Python310\lib\curses\__init__.py", line 94, in wrapper
-    return func(stdscr, *args, **kwds)
-  File "D:\CVPROJECTS\FlowIDE\main.py", line 170, in main
-    debug_win.addstr(f"xy:[{x},{y}] scrolly: {scrolly} relY: {y+scrolly}")
-_curses.error: addwstr() returned ERR

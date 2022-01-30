@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "d:\CVPROJECTS\FlowIDE\main.py", line 177, in <module>
-    wrapper(main)
-  File "C:\Users\timid\AppData\Local\Programs\Python\Python310\lib\curses\__init__.py", line 94, in wrapper
-    return func(stdscr, *args, **kwds)
-  File "d:\CVPROJECTS\FlowIDE\main.py", line 118, in main
-    debug_win = curses.newwin(0,curses.COLS-11,1,curses.COLS-1)
-_curses.error: curses function returned NULL

@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "d:\CVPROJECTS\FlowIDE\main.py", line 180, in <module>
-    wrapper(main)
-  File "C:\Users\timid\AppData\Local\Programs\Python\Python310\lib\curses\__init__.py", line 94, in wrapper
-    return func(stdscr, *args, **kwds)
-  File "d:\CVPROJECTS\FlowIDE\main.py", line 163, in main
-    y = clamp(0, curses.LINES-1) #max(min(y, curses.LINES-1),0)
-TypeError: clamp() missing 1 required positional argument: 'maximum'

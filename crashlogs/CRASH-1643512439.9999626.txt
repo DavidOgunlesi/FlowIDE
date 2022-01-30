@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "d:\CVPROJECTS\FlowIDE\main.py", line 178, in <module>
-    wrapper(main)
-  File "C:\Users\timid\AppData\Local\Programs\Python\Python310\lib\curses\__init__.py", line 94, in wrapper
-    return func(stdscr, *args, **kwds)
-  File "d:\CVPROJECTS\FlowIDE\main.py", line 163, in main
-    x = max(min(x,len(lines[min(lines.length, relY)])) ,0)
-AttributeError: 'list' object has no attribute 'length'

@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "D:\CVPROJECTS\FlowIDE\main.py", line 173, in <module>
-    wrapper(main)
-  File "C:\Users\timid\AppData\Local\Programs\Python\Python310\lib\curses\__init__.py", line 94, in wrapper
-    return func(stdscr, *args, **kwds)
-  File "D:\CVPROJECTS\FlowIDE\main.py", line 161, in main
-    x = max(min(x,len(lines[y+scrolly])) ,0)
-IndexError: list index out of range

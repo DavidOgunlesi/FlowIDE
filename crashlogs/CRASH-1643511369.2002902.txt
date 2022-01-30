@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "D:\CVPROJECTS\FlowIDE\main.py", line 173, in <module>
-    wrapper(main)
-  File "C:\Users\timid\AppData\Local\Programs\Python\Python310\lib\curses\__init__.py", line 94, in wrapper
-    return func(stdscr, *args, **kwds)
-  File "D:\CVPROJECTS\FlowIDE\main.py", line 152, in main
-    lines, x = defaultTextEntry(key, lines, x, y+scrolly)
-ValueError: too many values to unpack (expected 2)
