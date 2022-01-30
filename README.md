@@ -3,6 +3,10 @@ Flow is a commandline based IDE/Text Editor.
 ## Current Features:
 * Syntax Highlighting
 ## Planned Features:
+* Color Themes
+* Syntax Themes
+* Configurable Preferences
+* Copy & Paste
 * Project Files Hierarchy View
 * Clickable Menus
 * Small code preview window

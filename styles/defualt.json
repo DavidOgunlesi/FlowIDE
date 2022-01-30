@@ -1,8 +1,11 @@
 {
     ".Comment": 8,
-    ".Keyword": 2,
+    ".Keyword": 167,
     ".Name": 15,
-    ".Name.Function": 4,
+    ".Name.Function": 177,
     ".Name.Class": 5,
-    ".String": 41
+    ".String": 41,
+    ".Literal": 75,
+    ".Operator": 167,
+    ".Error": 12
 }

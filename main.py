@@ -11,6 +11,11 @@ import json
 import traceback
 import pyperclip
 TAB_SPACE = "   "
+MAX_FILE_LENGTH = 10000
+LINE_NUM_WIDTH = 7
+LINE_NUM_PAD = 2
+quit = False
+
 
 def countTabSpaces(string):
     i = 0
@@ -27,6 +32,54 @@ def countTabSpaces(string):
             spaceCount = 0
         i+=1
     return tabCount
+
+def HandleInput(scr, key, lines, x, y, scrolly, relY, renderUpdate):
+    global quit
+    if key == curses.KEY_RESIZE:
+        print(curses.LINES-1, curses.COLS-1)
+        scr.clear()
+        scr.refresh()
+        #pad.clear()
+        #pad.refresh(scrolly, 1, 0, 0, curses.LINES-1, curses.COLS-1)
+
+    if key == input.MOUSE:
+        _, x, y, _, _ = curses.getmouse()
+        maxLine = len(lines[min(len(lines), relY)])
+        x = max(min(x, maxLine) ,0)
+
+    if key == input.LEFT:
+        x -=1
+    elif key == input.RIGHT:
+        x +=1
+    elif key == input.UP:
+        y -=1
+        if y > len(lines)-1:
+            curses.beep()
+        elif y <= 0 and scrolly > 0:
+            scrolly-=1
+            renderUpdate = True
+    elif key == input.DOWN:
+        if y >= curses.LINES-1:
+            scrolly+=1
+            renderUpdate = True
+        else:
+            y +=1
+    elif key == input.ENTER:
+        lines, x, y, relY, scrolly = enter(lines, x, y, relY, scrolly)
+        renderUpdate = True
+    elif key == input.ESCAPE:
+        #exit program
+        quit = True
+    elif key == input.BACKSPACE:
+        if x == 0 and y == 0:
+            curses.beep()
+        lines, x, y, relY = backspace(lines, x, y, relY)
+        renderUpdate = True
+    elif key >= 0 and key <= 256:
+        lines, x, y, relY = defaultTextEntry(key, lines, x, y, relY)
+        renderUpdate = True
+
+    return lines, x, y, scrolly, relY, renderUpdate
 
 def enter(lines,x, y, relY, scrolly):
     #create new lines if needed
@@ -82,8 +135,13 @@ def defaultTextEntry(key,lines,x, y, relY):
         x += len(currStr)
     return lines, x, y, relY
 
-def renderLines(stdscr, lines, lexer, formatter, style, bgCol):
-    for lineNum in range(0,len(lines)):
+def renderLineNumbers(scr, color):
+    for i in range(0,MAX_FILE_LENGTH):
+        s = str(i).rjust(LINE_NUM_WIDTH-LINE_NUM_PAD, ' ')
+        scr.addstr(i, 0, f'{s}|',  color)
+
+def renderLines(scr, lines, scrolly, lexer, formatter, style, bgCol):
+    for lineNum in range(scrolly,scrolly + curses.LINES):
         line = " " + lines[lineNum]
         highlightedText = highlight(line, lexer, formatter)
         stringArrToParse = re.split(f'\[{formatter.hash}|{formatter.hash}\]', highlightedText)
@@ -103,103 +161,81 @@ def renderLines(stdscr, lines, lexer, formatter, style, bgCol):
                 #Convert token to curses Color
                 curses.init_pair(col+1, col, bgCol)
             else:
-                stdscr.addstr(lineNum, skip, el, curses.color_pair(col+1))
+                scr.addstr(lineNum, skip, el, curses.color_pair(col+1))
                 skip += len(el)
 
 
 def main(stdscr):
+    ########
+    #Config
+    ########
     bkgd = curses.COLOR_BLACK
-    curses.init_pair(100, curses.COLOR_WHITE, bkgd)
+    curses.init_pair(100, curses.COLOR_WHITE, curses.COLOR_BLACK)
+    BACKGROUND = curses.color_pair(100)
+
+    #Load style
     with open('styles/defualt.json', 'r') as f:
         style = json.load(f)
 
     curses.curs_set(2)
     curses.mousemask(1)
-    
-    filePath = 'main.py'
-    lines = file.readFileLines(filePath)
     stdscr.clear()
     stdscr.nodelay(True)
-    debug_win = curses.newwin(1,50,0,70)
+    stdscr.bkgd(' ', BACKGROUND)  
+
+    #Line number display
+    line_num_pad = curses.newpad(MAX_FILE_LENGTH, LINE_NUM_WIDTH)
+    line_num_pad.bkgd(' ', BACKGROUND)
+    renderLineNumbers(line_num_pad, BACKGROUND)
+
+    #Main editable text content pad
+    content_display_pad = curses.newpad(MAX_FILE_LENGTH,curses.COLS-1)
+    content_display_pad.bkgd(' ', BACKGROUND)   
+
+    #Debug Window
+    debug_win = curses.newwin(1,50,0,70) 
+    debug_win.bkgd(' ', BACKGROUND)  
+
+    #Load File and Init formatter with Lexer
+    filePath = 'main.py'
+    lines = file.readFileLines(filePath)
     lexer = guess_lexer_for_filename(filePath, '\n'.join(lines))
     formatter = TokenFormatter()
-    pad = curses.newpad(1000,curses.COLS-1)
-    stdscr.bkgd(' ', curses.color_pair(100))  
-    pad.bkgd(' ', curses.color_pair(100))    
-    debug_win.bkgd(' ', curses.color_pair(100))    
+    #################
+    #Main Render Loop
+    #################
     scrolly = 0
     x, y = 0, 0
     renderUpdate = True
-    while True:
+    while not quit:
         relY = y+scrolly
-        try: #try block needed if nodelay is set to True
+
+        #Key Inputs
+        try: 
             key = stdscr.getch()
         except:
             key = None
 
-        if key == curses.KEY_RESIZE:
-            print(curses.LINES-1, curses.COLS-1)
-            stdscr.clear()
-            stdscr.refresh()
-            #pad.clear()
-            #pad.refresh(scrolly, 1, 0, 0, curses.LINES-1, curses.COLS-1)
-            continue
-        if key == input.MOUSE:
-            _, x, y, _, _ = curses.getmouse()
-            maxLine = len(lines[min(len(lines), relY)])
-            x = max(min(x, maxLine) ,0)
-
-        if key == input.LEFT:
-            x -=1
-        elif key == input.RIGHT:
-            x +=1
-        elif key == input.UP:
-            y -=1
-            if y > len(lines)-1:
-                curses.beep()
-            elif y <= 0 and scrolly > 0:
-                scrolly-=1
-                renderUpdate = True
-        elif key == input.DOWN:
-            if y >= curses.LINES-1:
-                scrolly+=1
-                renderUpdate = True
-            else:
-                y +=1
-        elif key == input.ENTER:
-            lines, x, y, relY, scrolly = enter(lines, x, y, relY, scrolly)
-            renderUpdate = True
-        elif key == input.ESCAPE:
-            #exit program
-            break
-        elif key == input.BACKSPACE:
-            if x == 0 and y == 0:
-                curses.beep()
-            lines, x, y, relY = backspace(lines, x, y, relY)
-            renderUpdate = True
-        elif key >= 0 and key <= 256:
-            lines, x, y, relY = defaultTextEntry(key, lines, x, y, relY)
-            renderUpdate = True
+        lines, x, y, scrolly, relY, renderUpdate = HandleInput(stdscr, key, lines, x, y, scrolly, relY, renderUpdate)
 
         if y > len(lines)-1:
             curses.beep()
-        #if y > curses.LINES-1:
-            #scrolly -= y - curses.LINES-1
-            #y = curses.LINES-1
 
-        y = max(min(y, curses.LINES-1),0)
-        maxLine = len(lines[min(len(lines), relY)])
+        y = max(min(y, min(curses.LINES-1,len(lines)-1-scrolly)),0)
+        maxLine = len(lines[min(len(lines)-1, relY)])
         x = max(min(x, maxLine) ,0)
 
         #Render only when we need to
         if renderUpdate:
-            renderLines(pad, lines, lexer, formatter, style, bkgd)
+            renderLines(content_display_pad, lines,scrolly, lexer, formatter, style, bkgd)
         renderUpdate = False
 
         #renderCursor
-        stdscr.move(y,x)
+        stdscr.move(y,x+LINE_NUM_WIDTH)
 
-        pad.refresh(scrolly, 1, 0, 0, curses.LINES-1, curses.COLS-1)
+        content_display_pad.refresh(scrolly, 1, 0, LINE_NUM_WIDTH, curses.LINES-1, curses.COLS-1)
+        line_num_pad.refresh(scrolly, 0, 0, 0, max(0,min(curses.LINES-1,len(lines)-scrolly)), LINE_NUM_WIDTH)
+        
         #debug_win.erase()
         #debug_win.addstr(f"xy:[{x},{y}] scrolly: {scrolly} relY: {relY}", curses.color_pair(100))
         #debug_win.refresh()
