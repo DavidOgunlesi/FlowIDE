@@ -19,7 +19,7 @@ MAX_FILE_LENGTH = 10000
 LINE_NUM_WIDTH = 7
 LINE_NUM_PAD = 2
 NAVIGATION_MENU_HEIGHT = 2
-NAVIGATION_MENU_BUTTON_SPACING = 1
+NAVIGATION_MENU_BUTTON_SPACING = 2
 quit = False
 
 def countTabSpaces(string):
@@ -181,17 +181,26 @@ def renderLines(scr, lines, scrollx, scrolly, lexer, formatter, style, bgCol):
                 scr.addstr(lineNum,clamp(skip, scrollx,curses.COLS-LINE_NUM_WIDTH+scrollx), el, curses.color_pair(col+1))
                 skip += len(el)
 
-def createAndRenderNavgationBar(scr,color, *menu_buttons):
+def createAndRenderNavgationBar(scr, def_color, *menu_buttons):
     navbar = nav.NavBar()
     offset = 0
     for menu_btn in menu_buttons:
-        width = min(curses.COLS-1//len(menu_buttons), len(menu_btn.name) +NAVIGATION_MENU_BUTTON_SPACING*2)
-        #rectangle(scr, 0, 0, 1, 5)
-        #rectangle(stdscr, 1, 1, 5, 20)
-        scr.addstr(0, offset , menu_btn.name, color)
+        text = menu_btn.name.center(len(menu_btn.name)+NAVIGATION_MENU_BUTTON_SPACING, ' ')
+        width = min(curses.COLS-1//len(menu_buttons),len(text))#+NAVIGATION_MENU_BUTTON_SPACING*2)
+        scr.addstr(0, offset , text, def_color)
         navbar.addItem(menu_btn,(0,offset,NAVIGATION_MENU_HEIGHT-1,offset+width))#(t,l,b,r)
         offset += width
     return navbar
+
+def renderNavgationBar(scr, navbar, def_color, selected_button = None, sel_attr = curses.A_REVERSE):
+    scr.erase()
+    for (button,(t,l,b,r)) in navbar.items:
+        for i in range(t, b):
+            text = button.name.center(len(button.name) + NAVIGATION_MENU_BUTTON_SPACING, ' ')
+            scr.addstr(i, l, text, def_color)
+            if selected_button == button:
+                scr.addstr(i, l, text, def_color | sel_attr)
+    scr.refresh()
 
 def ProcessNavActions(buttonName : str):
     pass
@@ -279,6 +288,7 @@ def main(stdscr):
             _, x, y, _, _ = curses.getmouse()
             if (selectedButton := navbar.getItemFromPos((x, y))) != None:
                 print(selectedButton.name + "\n")
+                renderNavgationBar(nav_win, navbar, COL_OFFDARK, selectedButton)
             x -= LINE_NUM_WIDTH
             y -= NAVIGATION_MENU_HEIGHT
 

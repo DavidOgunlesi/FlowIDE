@@ -32,3 +32,9 @@ class NavBar():
             if x <= r and x >= l and y >= t and y <= b:
                 return button
         return None
+    
+    def getButtonRectFromName(self, buttonName : str):
+        for (button,(t,l,b,r)) in self.items:
+            if button.name == buttonName:
+                return (t,l,b,r)
+        return None
