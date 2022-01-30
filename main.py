@@ -2,6 +2,7 @@ import curses
 import time
 from curses import wrapper
 from curses.textpad import rectangle
+from turtle import goto
 import util.inputHandler as input
 import util.fileHandler as file
 from util.math import clamp
@@ -12,6 +13,7 @@ from util.formatters import TokenFormatter
 import json
 import traceback
 import pyperclip
+import navBarUI as nav
 TAB_SPACE = "   "
 MAX_FILE_LENGTH = 10000
 LINE_NUM_WIDTH = 7
@@ -44,11 +46,6 @@ def HandleInput(scr, key, lines, x, y, scrollx, scrolly, relX, relY, renderUpdat
         scr.refresh()
         #pad.clear()
         #pad.refresh(scrolly, 1, 0, 0, curses.LINES-1, curses.COLS-1)
-
-    if key == input.MOUSE:
-        _, x, y, _, _ = curses.getmouse()
-        x-= LINE_NUM_WIDTH
-        y-=NAVIGATION_MENU_HEIGHT
 
     if key == input.LEFT:
         x -=1
@@ -184,14 +181,21 @@ def renderLines(scr, lines, scrollx, scrolly, lexer, formatter, style, bgCol):
                 scr.addstr(lineNum,clamp(skip, scrollx,curses.COLS-LINE_NUM_WIDTH+scrollx), el, curses.color_pair(col+1))
                 skip += len(el)
 
-def renderNavgationBar(scr, menu_buttons,color):
+def createAndRenderNavgationBar(scr,color, *menu_buttons):
+    navbar = nav.NavBar()
     offset = 0
     for menu_btn in menu_buttons:
-        width = min(curses.COLS-1//len(menu_buttons), len(menu_btn) +NAVIGATION_MENU_BUTTON_SPACING*2)
+        width = min(curses.COLS-1//len(menu_buttons), len(menu_btn.name) +NAVIGATION_MENU_BUTTON_SPACING*2)
         #rectangle(scr, 0, 0, 1, 5)
         #rectangle(stdscr, 1, 1, 5, 20)
-        scr.addstr(0, offset , menu_btn, color)
+        scr.addstr(0, offset , menu_btn.name, color)
+        navbar.addItem(menu_btn,(0,offset,NAVIGATION_MENU_HEIGHT-1,offset+width))#(t,l,b,r)
         offset += width
+    return navbar
+
+def ProcessNavActions(buttonName : str):
+    pass
+
 
 def main(stdscr):
     ########
@@ -230,7 +234,19 @@ def main(stdscr):
     #Navigation Window
     nav_win = curses.newwin(NAVIGATION_MENU_HEIGHT-1, curses.COLS,0,0) 
     nav_win.bkgd(' ', COL_OFFDARK)
-    renderNavgationBar(nav_win, ["File", "Edit", "Selection", "View", "Go", "Run", "Terminal", "Help"], COL_OFFDARK)
+    
+    #Set up navbar buttons
+    fileBtn = nav.DropDownButton("File", ProcessNavActions)
+    editBtn = nav.DropDownButton("Edit", ProcessNavActions)
+    selectionBtn = nav.DropDownButton("Selection", ProcessNavActions)
+    viewBtn = nav.DropDownButton("View", ProcessNavActions)
+    goBtn = nav.DropDownButton("Go", ProcessNavActions)
+    runBtn = nav.DropDownButton("Run", ProcessNavActions)
+    terminalBtn = nav.DropDownButton("Terminal", ProcessNavActions)
+    helpBtn = nav.DropDownButton("Help", ProcessNavActions)
+    navbar = createAndRenderNavgationBar(nav_win,COL_OFFDARK, fileBtn,editBtn,selectionBtn,viewBtn,goBtn,runBtn,terminalBtn,helpBtn)
+    
+    #renderNavgationBar(nav_win, ["File", "Edit", "Selection", "View", "Go", "Run", "Terminal", "Help"], COL_OFFDARK)
 
     #Debug Window
     debug_win = curses.newwin(1,50,0,70) 
@@ -258,6 +274,14 @@ def main(stdscr):
             key = None
 
         lines, x, y, scrollx, scrolly, relX, relY, renderUpdate = HandleInput(stdscr, key, lines, x, y, scrollx, scrolly,relX, relY, renderUpdate)
+
+        if key == input.MOUSE:
+            _, x, y, _, _ = curses.getmouse()
+            if (selectedButton := navbar.getItemFromPos((x, y))) != None:
+                print(selectedButton.name + "\n")
+            x -= LINE_NUM_WIDTH
+            y -= NAVIGATION_MENU_HEIGHT
+
 
         if y > len(lines)-1:
             curses.beep()
