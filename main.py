@@ -5,10 +5,11 @@ import util.inputHandler as input
 import util.fileHandler as file
 import re
 from pygments import highlight
-from pygments.lexers import PythonLexer
+from pygments.lexers import guess_lexer_for_filename
 from util.formatters import TokenFormatter
 import json
 import traceback
+import pyperclip
 TAB_SPACE = "   "
 
 def countTabSpaces(string):
@@ -81,11 +82,11 @@ def defaultTextEntry(key,lines,x, y, relY):
         x += len(currStr)
     return lines, x, y, relY
 
-def renderLines(stdscr, lines, formatter, style, bgCol):
+def renderLines(stdscr, lines, lexer, formatter, style, bgCol):
     for lineNum in range(0,len(lines)):
         line = " " + lines[lineNum]
-        highlightedText = highlight(line, PythonLexer(), formatter)
-        stringArrToParse = re.split(f'\[|\]', highlightedText)
+        highlightedText = highlight(line, lexer, formatter)
+        stringArrToParse = re.split(f'\[{formatter.hash}|{formatter.hash}\]', highlightedText)
         skip = 0
         col = 15
         #Highlight Syntax using style
@@ -114,11 +115,13 @@ def main(stdscr):
 
     curses.curs_set(2)
     curses.mousemask(1)
-    #lines = ["\"hello\" + 'world' text!","asdasdasd","asdasdasd"]
-    lines = file.readFileLines('main.py')
+    
+    filePath = 'main.py'
+    lines = file.readFileLines(filePath)
     stdscr.clear()
     stdscr.nodelay(True)
     debug_win = curses.newwin(1,50,0,70)
+    lexer = guess_lexer_for_filename(filePath, '\n'.join(lines))
     formatter = TokenFormatter()
     pad = curses.newpad(1000,curses.COLS-1)
     stdscr.bkgd(' ', curses.color_pair(100))  
@@ -126,8 +129,8 @@ def main(stdscr):
     debug_win.bkgd(' ', curses.color_pair(100))    
     scrolly = 0
     x, y = 0, 0
+    renderUpdate = True
     while True:
-
         relY = y+scrolly
         try: #try block needed if nodelay is set to True
             key = stdscr.getch()
@@ -135,7 +138,6 @@ def main(stdscr):
             key = None
 
         if key == curses.KEY_RESIZE:
-            #curses.resizeterm(*stdscr.getmaxyx())
             print(curses.LINES-1, curses.COLS-1)
             stdscr.clear()
             stdscr.refresh()
@@ -157,13 +159,16 @@ def main(stdscr):
                 curses.beep()
             elif y <= 0 and scrolly > 0:
                 scrolly-=1
+                renderUpdate = True
         elif key == input.DOWN:
             if y >= curses.LINES-1:
                 scrolly+=1
+                renderUpdate = True
             else:
                 y +=1
         elif key == input.ENTER:
             lines, x, y, relY, scrolly = enter(lines, x, y, relY, scrolly)
+            renderUpdate = True
         elif key == input.ESCAPE:
             #exit program
             break
@@ -171,8 +176,10 @@ def main(stdscr):
             if x == 0 and y == 0:
                 curses.beep()
             lines, x, y, relY = backspace(lines, x, y, relY)
+            renderUpdate = True
         elif key >= 0 and key <= 256:
             lines, x, y, relY = defaultTextEntry(key, lines, x, y, relY)
+            renderUpdate = True
 
         if y > len(lines)-1:
             curses.beep()
@@ -183,15 +190,19 @@ def main(stdscr):
         y = max(min(y, curses.LINES-1),0)
         maxLine = len(lines[min(len(lines), relY)])
         x = max(min(x, maxLine) ,0)
-        #pad.erase()
-        #pad.refresh(0, 0, 0, 0, curses.LINES-1, curses.COLS-1)
-        renderLines(pad, lines, formatter, style, bkgd)
+
+        #Render only when we need to
+        if renderUpdate:
+            renderLines(pad, lines, lexer, formatter, style, bkgd)
+        renderUpdate = False
+
         #renderCursor
-        pad.refresh(scrolly, 1, 0, 0, curses.LINES-1, curses.COLS-1)
         stdscr.move(y,x)
-        debug_win.erase()
-        debug_win.addstr(f"xy:[{x},{y}] scrolly: {scrolly} relY: {relY}", curses.color_pair(100))
-        debug_win.refresh()
+
+        pad.refresh(scrolly, 1, 0, 0, curses.LINES-1, curses.COLS-1)
+        #debug_win.erase()
+        #debug_win.addstr(f"xy:[{x},{y}] scrolly: {scrolly} relY: {relY}", curses.color_pair(100))
+        #debug_win.refresh()
     #stdscr.getch()
 
 

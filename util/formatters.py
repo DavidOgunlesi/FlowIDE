@@ -9,4 +9,4 @@ class TokenFormatter(Formatter):
 
     def format(self, tokensource, outfile):
         for ttype, value in tokensource:
-            outfile.write(f"[{self.hash}{ttype}]{value}")
+            outfile.write(f"[{self.hash}{self.hash}{ttype}{self.hash}]{value}")
