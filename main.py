@@ -334,7 +334,7 @@ def main(stdscr):
 
     #Load File and Init formatter with Lexer
     #filePath ='testfiles/LongPythonProgram.py'#'main.py'
-    file_path ='testfiles/CProgram.c'
+    file_path ='testfiles/python.py'
     if file.fileExists(file_path):
         lines = file.readFileLines(file_path)
         lexer = guess_lexer_for_filename(file_path, '\n'.join(lines))
