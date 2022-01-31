@@ -29,7 +29,7 @@ class NavBar():
         (x,y) = pos
         for (button,(t,l,b,r)) in self.items:
             #if in rect
-            if x <= r and x >= l and y >= t and y <= b:
+            if x <= r and x >= l and y >= t and y < b:
                 return button
         return None
     

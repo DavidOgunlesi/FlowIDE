@@ -19,8 +19,9 @@ TAB_SPACE = "   "
 MAX_FILE_LENGTH = 10000
 LINE_NUM_WIDTH = 7
 LINE_NUM_PAD = 2
-NAVIGATION_MENU_BAR_HEIGHT = 2
-MENU_HEIGHT = NAVIGATION_MENU_BAR_HEIGHT
+NAVIGATION_MENU_BAR_HEIGHT = 1
+FILE_TAB_HEIGHT = 2
+MENU_HEIGHT = NAVIGATION_MENU_BAR_HEIGHT + FILE_TAB_HEIGHT + 1
 NAVIGATION_MENU_BUTTON_SPACING = 2
 NAVIGATION_DROPDOWN_MENU_HEIGHT = 30
 quit = False
@@ -181,7 +182,11 @@ def renderLines(scr, lines, scrollx, scrolly, lexer, formatter, style, bgCol):
     scr.clear()
     for lineNum in range(scrolly,min(len(lines) ,scrolly + curses.LINES )):
         line = " " + lines[lineNum]
-        highlightedText = highlight(line, lexer, formatter)
+        if lexer != None:
+            highlightedText = highlight(line, lexer, formatter)
+        else:
+            highlightedText = line
+
         stringArrToParse = re.split(f'\[{formatter.hash}|{formatter.hash}\]', highlightedText)
         skip = 0
         col = 15
@@ -202,34 +207,55 @@ def renderLines(scr, lines, scrollx, scrolly, lexer, formatter, style, bgCol):
                 scr.addstr(lineNum,clamp(skip, scrollx,curses.COLS-LINE_NUM_WIDTH+scrollx), el, curses.color_pair(col+1))
                 skip += len(el)
 
-def createAndRenderNavgationBar(scr, def_color, *menu_buttons):
+def initNavMenu(nav_win, nav_bgcolor) -> nav.NavBar:
+    #Set up navbar buttons
+    fileBtn = nav.DropDownButton("File", ProcessNavActions)
+    fileBtn.addItem(nav.Button("New File", ProcessNavActions))
+    fileBtn.addItem(nav.Button("Open File", ProcessNavActions))
+    fileBtn.addItem(nav.Button("Save", ProcessNavActions))
+    fileBtn.addItem(nav.Button("Save As", ProcessNavActions))
+    fileBtn.addItem(nav.Button("Save All", ProcessNavActions))
+    fileBtn.addItem(nav.Button("Autosave", ProcessNavActions))
+    fileBtn.addItem(nav.Button("Preferences", ProcessNavActions))
+
+    editBtn = nav.DropDownButton("Edit", ProcessNavActions)
+    selectionBtn = nav.DropDownButton("Selection", ProcessNavActions)
+    viewBtn = nav.DropDownButton("View", ProcessNavActions)
+    goBtn = nav.DropDownButton("Go", ProcessNavActions)
+    runBtn = nav.DropDownButton("Run", ProcessNavActions)
+    terminalBtn = nav.DropDownButton("Terminal", ProcessNavActions)
+    helpBtn = nav.DropDownButton("Help", ProcessNavActions)
+    navbar = createAndRenderNavgationBar(nav_win, NAVIGATION_MENU_BAR_HEIGHT, nav_bgcolor, fileBtn,editBtn,selectionBtn,viewBtn,goBtn,runBtn,terminalBtn,helpBtn)
+    return navbar
+
+def createAndRenderNavgationBar(scr, height, def_color, *menu_buttons):
     navbar = nav.NavBar()
     offset = 0
     for menu_btn in menu_buttons:
         text = menu_btn.name.center(len(menu_btn.name)+NAVIGATION_MENU_BUTTON_SPACING, ' ')
         width = min(curses.COLS-1//len(menu_buttons),len(text))#+NAVIGATION_MENU_BUTTON_SPACING*2)
-        scr.addstr(0, offset , text, def_color)
-        navbar.addItem(menu_btn,(0,offset,NAVIGATION_MENU_BAR_HEIGHT-1,offset+width))#(t,l,b,r)
+        scr.addstr(height//2, offset , text, def_color)
+        navbar.addItem(menu_btn,(0,offset,height,offset+width))#(t,l,b,r)
         offset += width
     return navbar
 
-def renderNavgationBar(scr, navbar, def_color, selected_button = None, sel_attr = curses.A_REVERSE):
+def renderNavgationBar(scr, navbar, def_color, spacing = 2, selected_button = None, sel_attr = curses.A_REVERSE):
     scr.erase()
     for (button,(t,l,b,r)) in navbar.items:
         for i in range(t, b):
-            text = button.name.center(len(button.name) + NAVIGATION_MENU_BUTTON_SPACING, ' ')
+            text = button.name.center(len(button.name) + spacing, ' ')
             scr.addstr(i, l, text, def_color)
             if selected_button == button:
                 scr.addstr(i, l, text, def_color | sel_attr)
     scr.refresh()
 
-def renderDropDown(stdscr, nav_win, navbar, selectedButton, color):
+def renderDropDown(navbar, selectedButton, color):
     global MENU_HEIGHT
     subItems = selectedButton.getDropdownItems()
     (t,l,b,r) = navbar.getButtonRectFromName(selectedButton.name)
     #print(f"{NAVIGATION_DROPDOWN_MENU_HEIGHT}, {len(subItems)},{NAVIGATION_MENU_HEIGHT},{l}")#t+1+len(subItems)
-    dpDwn_win = curses.newwin(NAVIGATION_MENU_BAR_HEIGHT+len(subItems),curses.COLS-1,NAVIGATION_MENU_BAR_HEIGHT-1,0)
-    MENU_HEIGHT = len(subItems)+1
+    MENU_HEIGHT = NAVIGATION_MENU_BAR_HEIGHT + FILE_TAB_HEIGHT + len(subItems)+1
+    dpDwn_win = curses.newwin(len(subItems),curses.COLS-1,NAVIGATION_MENU_BAR_HEIGHT,0)
     #dpDwn_win = curses.newwin(NAVIGATION_DROPDOWN_MENU_HEIGHT, len(subItems),NAVIGATION_MENU_HEIGHT,l)
     dpDwn_win.bkgd(' ', color)
     for i, subBtn in enumerate(subItems):
@@ -238,6 +264,16 @@ def renderDropDown(stdscr, nav_win, navbar, selectedButton, color):
     #stdscr.clear()
     #renderNavgationBar(nav_win, navbar, color, selectedButton)
     return dpDwn_win
+
+def CheckForButtonPress(nav_win, navbar,tab_bar, pos, sel_col):
+    (x,y) = pos
+    if (selectedButton := navbar.getItemFromPos((x, y))) != None:
+        nav_win.erase()
+        renderNavgationBar(nav_win, navbar, sel_col, NAVIGATION_MENU_BUTTON_SPACING, selectedButton)
+        #renderNavgationBar(nav_win, tab_bar, sel_col, NAVIGATION_MENU_BUTTON_SPACING, selectedButton)
+        nav_win.refresh()
+        if isinstance(selectedButton, nav.DropDownButton):
+            renderDropDown(navbar, selectedButton, sel_col)
 
 def ProcessNavActions(buttonName : str):
     pass
@@ -253,6 +289,8 @@ def main(stdscr):
     COL_OFFDARK = curses.color_pair(101)
     curses.init_pair(102,245, curses.COLOR_BLACK)
     COL_DIMTEXT = curses.color_pair(102)
+    curses.init_pair(103,curses.COLOR_WHITE, 240)
+    COL_GRAY = curses.color_pair(103)
     #Load style
     with open('styles/defualt.json', 'r') as f:
         style = json.load(f)
@@ -277,23 +315,18 @@ def main(stdscr):
     scroll_display_win.bkgd(' ', COL_OFFDARK)
 
     #Navigation Window
-    nav_win = curses.newwin(NAVIGATION_MENU_BAR_HEIGHT-1, curses.COLS,0,0) 
+    nav_win = curses.newwin(NAVIGATION_MENU_BAR_HEIGHT, curses.COLS,0,0) 
     nav_win.bkgd(' ', COL_OFFDARK)
-    
-    #Set up navbar buttons
-    fileBtn = nav.DropDownButton("File", ProcessNavActions)
-    fileBtn.addItem(nav.Button("New File", ProcessNavActions))
 
-    editBtn = nav.DropDownButton("Edit", ProcessNavActions)
-    selectionBtn = nav.DropDownButton("Selection", ProcessNavActions)
-    viewBtn = nav.DropDownButton("View", ProcessNavActions)
-    goBtn = nav.DropDownButton("Go", ProcessNavActions)
-    runBtn = nav.DropDownButton("Run", ProcessNavActions)
-    terminalBtn = nav.DropDownButton("Terminal", ProcessNavActions)
-    helpBtn = nav.DropDownButton("Help", ProcessNavActions)
-    navbar = createAndRenderNavgationBar(nav_win,COL_OFFDARK, fileBtn,editBtn,selectionBtn,viewBtn,goBtn,runBtn,terminalBtn,helpBtn)
-    
-    #renderNavgationBar(nav_win, ["File", "Edit", "Selection", "View", "Go", "Run", "Terminal", "Help"], COL_OFFDARK)
+    navbar = initNavMenu(nav_win, COL_OFFDARK)
+
+    #Tab Window
+    tab_win = curses.newpad(FILE_TAB_HEIGHT, curses.COLS) 
+    tab_win.bkgd(' ', COL_DEFAULT)
+    #Tabs
+    file_tab_btn = nav.Button("file1.txt", ProcessNavActions)
+    tab_bar = createAndRenderNavgationBar(tab_win,FILE_TAB_HEIGHT, COL_GRAY, file_tab_btn)
+
 
     #Debug Window
     debug_win = curses.newwin(1,50,0,70) 
@@ -311,7 +344,7 @@ def main(stdscr):
             lorem_text += lorem.paragraph() + "\n"
         lines = lorem_text.split('\n')
         print(len(lines))
-        lexer = guess_lexer_for_filename(file_path,lorem_text)
+        lexer = None
     formatter = TokenFormatter()
     #################
     #Main Render Loop
@@ -333,10 +366,7 @@ def main(stdscr):
 
         if key == input.MOUSE:
             _, x, y, _, _ = curses.getmouse()
-            if (selectedButton := navbar.getItemFromPos((x, y))) != None:
-                renderNavgationBar(nav_win, navbar, COL_OFFDARK, selectedButton)
-                if isinstance(selectedButton, nav.DropDownButton):
-                    currentDropDownMenu = renderDropDown(stdscr,nav_win, navbar, selectedButton, COL_OFFDARK)
+            CheckForButtonPress(nav_win, navbar, tab_bar, (x,y), COL_OFFDARK)
             x -= LINE_NUM_WIDTH
             y -= MENU_HEIGHT
 
@@ -364,6 +394,8 @@ def main(stdscr):
         yEnd = clamp(len(lines)-scrolly, 0, MAX_FILE_LENGTH-scrolly)+1
         line_num_pad.refresh(scrolly, 0, MENU_HEIGHT, 0,curses.LINES-1, LINE_NUM_WIDTH)
         nav_win.refresh()
+        #tab_win.refresh(0,0,NAVIGATION_MENU_BAR_HEIGHT+1,0,MENU_HEIGHT-1,curses.COLS-1)
+        tab_win.refresh(0,0,MENU_HEIGHT-NAVIGATION_MENU_BAR_HEIGHT-2,0,MENU_HEIGHT-NAVIGATION_MENU_BAR_HEIGHT+FILE_TAB_HEIGHT-1,curses.COLS-1)
         #if currentDropDownMenu != None:
             #currentDropDownMenu.refresh()
 
