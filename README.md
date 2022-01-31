@@ -10,6 +10,7 @@ Flow is a commandline based IDE/Text Editor.
 * Keystroke History
 * Multiple Tabs
 * Saving files
+* Collapsible Indents
 * Project Files Hierarchy View
 * Small code preview window
 * Configurable Preferences

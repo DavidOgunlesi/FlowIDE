@@ -194,13 +194,16 @@ def renderLines(scr, lines, scrollx, scrolly, lexer, formatter, style, bgCol):
         for el in stringArrToParse:
             if el.startswith(f"{formatter.hash}Token"):
                 tokenArr = el.split('.')
-                for i in range(1,len(tokenArr)):
-                    subTokens = el.split('.')[i:]
-                    currSearchKey = ""
-                    for key in subTokens:
-                        currSearchKey += f".{key}"
-                        if currSearchKey in style:
-                            col = style[currSearchKey]
+                if 'Error' in tokenArr:
+                    col = 12
+                else:
+                    for i in range(1,len(tokenArr)):
+                        subTokens = el.split('.')[i:]
+                        currSearchKey = ""
+                        for key in subTokens:
+                            currSearchKey += f".{key}"
+                            if currSearchKey in style:
+                                col = style[currSearchKey]
                 #Convert token to curses Color
                 curses.init_pair(col+1, col, bgCol)
             else:
