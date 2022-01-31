@@ -13,12 +13,14 @@ from util.formatters import TokenFormatter
 import json
 import traceback
 import pyperclip
+import lorem 
 import navBarUI as nav
 TAB_SPACE = "   "
 MAX_FILE_LENGTH = 10000
 LINE_NUM_WIDTH = 7
 LINE_NUM_PAD = 2
-NAVIGATION_MENU_HEIGHT = 2
+NAVIGATION_MENU_BAR_HEIGHT = 2
+MENU_HEIGHT = NAVIGATION_MENU_BAR_HEIGHT
 NAVIGATION_MENU_BUTTON_SPACING = 2
 NAVIGATION_DROPDOWN_MENU_HEIGHT = 30
 quit = False
@@ -32,7 +34,7 @@ def countTabSpaces(string):
         if c == ' ':
             spaceCount+=1
         else:
-            break;
+            break
         if spaceCount >= len(TAB_SPACE):
             tabCount += 1
             spaceCount = 0
@@ -67,7 +69,7 @@ def HandleInput(scr, key, lines, x, y, scrollx, scrolly, relX, relY, renderUpdat
             scrolly-=1
             renderUpdate = True
     elif key == input.DOWN:
-        if y >= curses.LINES-1-NAVIGATION_MENU_HEIGHT:
+        if y >= curses.LINES-1-MENU_HEIGHT:
             scrolly+=1
             renderUpdate = True
         else:
@@ -81,7 +83,7 @@ def HandleInput(scr, key, lines, x, y, scrollx, scrolly, relX, relY, renderUpdat
     elif key == input.BACKSPACE:
         if x == 0 and y == 0:
             curses.beep()
-        lines, x, y, relX, relY = backspace(lines, x, y,relX, relY)
+        lines, x, y, relX, relY, scrolly = backspace(lines, x, y,relX, relY, scrolly)
         renderUpdate = True
     elif key >= 0 and key <= 256:
         lines, x, y, relX, relY = defaultTextEntry(key, lines, x, y, relX, relY)
@@ -101,13 +103,14 @@ def enter(lines,x, y, relX, relY, scrolly):
     else:
         lines[relY+1] = lineRemainder
     #if cursor is at bottom
-    if y == curses.LINES-1-NAVIGATION_MENU_HEIGHT:
+    if y == curses.LINES-1-MENU_HEIGHT:
         scrolly += 1
     y+=1
     return lines, x, y, relX, relY, scrolly
 
-def backspace(lines,x, y, relX, relY):
+def backspace(lines, x, y, relX, relY, scrolly):
     #if we are somewhere in the middle of a line
+    relY = clamp(relY,0,len(lines)-1)
     if x > 0:
         #If we have tab space on backspace, remove it entirely
         if lines[relY][x-len(TAB_SPACE):x] == TAB_SPACE:
@@ -127,7 +130,8 @@ def backspace(lines,x, y, relX, relY):
         #Append line to previous line
         lines[relY] += line
         y-=1
-    return lines, x, y, relX, relY
+        scrolly = max(scrolly-1,0)
+    return lines, x, y, relX, relY, scrolly
 
 def defaultTextEntry(key,lines,x, y, relX, relY):
     currStr = chr(key)
@@ -150,15 +154,31 @@ def renderLineNumbers(scr, color):
 
 def renderScrollBar(scr, scrolly, maxScrolly, color):
     scr.erase()
-    i = int((scrolly/maxScrolly)*curses.LINES-1)
+    i = int((scrolly/clamp(maxScrolly,1,MAX_FILE_LENGTH))*curses.LINES-1)
     #i = clamp(i, 0, curses.LINES-2)
-    barSize  = int((curses.LINES*curses.LINES)/(curses.LINES+maxScrolly))
-    #barSize = int(barPercentSize*curses.LINES)
-    for y in range(0,barSize):
-        scr.addstr(clamp(i+y, 0, curses.LINES-2), 0, '█', color)
-    scr.refresh(0,0,NAVIGATION_MENU_HEIGHT-1,curses.COLS-1,curses.LINES-1,curses.COLS-1)
+    barPercentage = (curses.LINES)/(curses.LINES+maxScrolly)
+    barSizeFloat = barPercentage*curses.LINES
+    barSize = max(int(barSizeFloat),1)
+    symbol = '-'
+    if barSizeFloat >= 1:
+        symbol = '█'
+    elif barSizeFloat < 1 and barSizeFloat >= 0.5:
+        symbol = '■'
+    elif barSizeFloat < 0.5 and barSizeFloat >= 0.4:
+        symbol = '≡'
+    elif barSizeFloat < 0.4 and barSizeFloat >= 0.3:
+        symbol = '='
+    elif barSizeFloat < 0.3:
+        symbol = '-'
+
+    top = clamp(i,0,curses.LINES-barSize)
+    bottom = top+barSize
+    for y in range(top,bottom):
+        scr.addstr(clamp(y, 0, curses.LINES-2), 0, symbol, color)
+    scr.refresh(0,0,MENU_HEIGHT-1,curses.COLS-1,curses.LINES-1,curses.COLS-1)
 
 def renderLines(scr, lines, scrollx, scrolly, lexer, formatter, style, bgCol):
+    scr.clear()
     for lineNum in range(scrolly,min(len(lines) ,scrolly + curses.LINES )):
         line = " " + lines[lineNum]
         highlightedText = highlight(line, lexer, formatter)
@@ -189,7 +209,7 @@ def createAndRenderNavgationBar(scr, def_color, *menu_buttons):
         text = menu_btn.name.center(len(menu_btn.name)+NAVIGATION_MENU_BUTTON_SPACING, ' ')
         width = min(curses.COLS-1//len(menu_buttons),len(text))#+NAVIGATION_MENU_BUTTON_SPACING*2)
         scr.addstr(0, offset , text, def_color)
-        navbar.addItem(menu_btn,(0,offset,NAVIGATION_MENU_HEIGHT-1,offset+width))#(t,l,b,r)
+        navbar.addItem(menu_btn,(0,offset,NAVIGATION_MENU_BAR_HEIGHT-1,offset+width))#(t,l,b,r)
         offset += width
     return navbar
 
@@ -204,26 +224,23 @@ def renderNavgationBar(scr, navbar, def_color, selected_button = None, sel_attr 
     scr.refresh()
 
 def renderDropDown(stdscr, nav_win, navbar, selectedButton, color):
-    global NAVIGATION_MENU_HEIGHT
+    global MENU_HEIGHT
     subItems = selectedButton.getDropdownItems()
     (t,l,b,r) = navbar.getButtonRectFromName(selectedButton.name)
     #print(f"{NAVIGATION_DROPDOWN_MENU_HEIGHT}, {len(subItems)},{NAVIGATION_MENU_HEIGHT},{l}")#t+1+len(subItems)
-    dpDwn_win = curses.newwin(NAVIGATION_MENU_HEIGHT+len(subItems),5,NAVIGATION_MENU_HEIGHT-1,0)
-    #NAVIGATION_MENU_HEIGHT = 2 + len(subItems)+1
+    dpDwn_win = curses.newwin(NAVIGATION_MENU_BAR_HEIGHT+len(subItems),curses.COLS-1,NAVIGATION_MENU_BAR_HEIGHT-1,0)
+    MENU_HEIGHT = len(subItems)+1
     #dpDwn_win = curses.newwin(NAVIGATION_DROPDOWN_MENU_HEIGHT, len(subItems),NAVIGATION_MENU_HEIGHT,l)
     dpDwn_win.bkgd(' ', color)
     for i, subBtn in enumerate(subItems):
-        dpDwn_win.addstr(t+1+i,l,subBtn.name, color) 
+        dpDwn_win.addstr(t+i,l,subBtn.name, color) 
     dpDwn_win.refresh()
     #stdscr.clear()
     #renderNavgationBar(nav_win, navbar, color, selectedButton)
     return dpDwn_win
 
-        
-
 def ProcessNavActions(buttonName : str):
     pass
-
 
 def main(stdscr):
     ########
@@ -260,7 +277,7 @@ def main(stdscr):
     scroll_display_win.bkgd(' ', COL_OFFDARK)
 
     #Navigation Window
-    nav_win = curses.newwin(NAVIGATION_MENU_HEIGHT-1, curses.COLS,0,0) 
+    nav_win = curses.newwin(NAVIGATION_MENU_BAR_HEIGHT-1, curses.COLS,0,0) 
     nav_win.bkgd(' ', COL_OFFDARK)
     
     #Set up navbar buttons
@@ -284,9 +301,17 @@ def main(stdscr):
 
     #Load File and Init formatter with Lexer
     #filePath ='testfiles/LongPythonProgram.py'#'main.py'
-    filePath ='testfiles/CProgram.c'
-    lines = file.readFileLines(filePath)
-    lexer = guess_lexer_for_filename(filePath, '\n'.join(lines))
+    file_path ='testfiles/CProgram.c'
+    if file.fileExists(file_path):
+        lines = file.readFileLines(file_path)
+        lexer = guess_lexer_for_filename(file_path, '\n'.join(lines))
+    else:
+        lorem_text = ""
+        for _ in range(0,0):
+            lorem_text += lorem.paragraph() + "\n"
+        lines = lorem_text.split('\n')
+        print(len(lines))
+        lexer = guess_lexer_for_filename(file_path,lorem_text)
     formatter = TokenFormatter()
     #################
     #Main Render Loop
@@ -304,7 +329,7 @@ def main(stdscr):
         except:
             key = None
 
-        lines, x, y, scrollx, scrolly, relX, relY, renderUpdate = HandleInput(stdscr, key, lines, x, y, scrollx, scrolly,relX, relY, renderUpdate)
+        lines, x, y, scrollx, scrolly, relX, relY, renderUpdate = HandleInput(stdscr, key, lines, x, y, scrollx, scrolly, relX, relY, renderUpdate)
 
         if key == input.MOUSE:
             _, x, y, _, _ = curses.getmouse()
@@ -313,7 +338,7 @@ def main(stdscr):
                 if isinstance(selectedButton, nav.DropDownButton):
                     currentDropDownMenu = renderDropDown(stdscr,nav_win, navbar, selectedButton, COL_OFFDARK)
             x -= LINE_NUM_WIDTH
-            y -= NAVIGATION_MENU_HEIGHT
+            y -= MENU_HEIGHT
 
 
         if y > len(lines)-1:
@@ -327,27 +352,30 @@ def main(stdscr):
         #Render only when we need to
         if renderUpdate:
             renderLines(content_display_pad, lines, scrollx, scrolly, lexer, formatter, style, bkgd)
-            renderScrollBar(scroll_display_win, relY, len(lines)-1, COL_OFFDARK)
+            renderScrollBar(scroll_display_win, scrolly, max(0,len(lines)-1-curses.LINES), COL_OFFDARK)
         renderUpdate = False
         #renderNavgationBar(nav_win, ["File", "Edit", "Selection", "View", "Go", "Run", "Terminal", "Help"], COL_OFFDARK)
 
         #renderCursor
         #print(f"{curses.LINES-1} {curses.COLS-1} { y+NAVIGATION_MENU_HEIGHT} {x+LINE_NUM_WIDTH}")
 
-        content_display_pad.refresh(scrolly,scrollx + 1, NAVIGATION_MENU_HEIGHT, LINE_NUM_WIDTH, curses.LINES-1, curses.COLS-3)
-        line_num_pad.refresh(scrolly, 0, NAVIGATION_MENU_HEIGHT, 0, max(0,min(curses.LINES-1,len(lines)-scrolly)), LINE_NUM_WIDTH)
+        content_display_pad.refresh(scrolly,scrollx + 1, MENU_HEIGHT, LINE_NUM_WIDTH, curses.LINES-1, curses.COLS-3)
+        #yEnd = clamp(curses.LINES-1,0,clamp(len(lines)-scrolly, 0, MAX_FILE_LENGTH-scrolly))+1
+        yEnd = clamp(len(lines)-scrolly, 0, MAX_FILE_LENGTH-scrolly)+1
+        line_num_pad.refresh(scrolly, 0, MENU_HEIGHT, 0,curses.LINES-1, LINE_NUM_WIDTH)
         nav_win.refresh()
         #if currentDropDownMenu != None:
             #currentDropDownMenu.refresh()
 
-        stdscr.move(min(curses.LINES-1,y+NAVIGATION_MENU_HEIGHT),min(curses.COLS-1,x+LINE_NUM_WIDTH))
-        #debug_win.erase()
-        #debug_win.addstr(f"xy:[{x},{y}] scrollxy: {scrollx},{scrolly} relY: {relY}", curses.color_pair(100))
-        #debug_win.refresh()
+        stdscr.move(min(curses.LINES-1,y+MENU_HEIGHT),min(curses.COLS-1,x+LINE_NUM_WIDTH))
+        debug_win.erase()
+        debug_win.addstr(f"xy:[{x},{y}] scrollxy: {scrollx},{scrolly} relY: {relY}", curses.color_pair(100))
+        debug_win.refresh()
     #stdscr.getch()
 
 
 if __name__ == '__main__':
+    file.ensure_dir("testfiles/")
     try:
       wrapper(main)
     except Exception as e:
@@ -355,6 +383,7 @@ if __name__ == '__main__':
         crash = str(tb)
         print(crash)
         timeX=str(time.time())
+        file.ensure_dir("crashlogs/")
         with open("crashlogs/CRASH-"+timeX+".txt","w") as crashLog:
             for i in crash:
                 i=str(i)
