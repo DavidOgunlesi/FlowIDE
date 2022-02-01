@@ -32,6 +32,11 @@ NAVIGATION_DROPDOWN_MENU_HEIGHT = 30
 quit = False
 spell = SpellChecker()
 
+text_style_dict = {
+         "Style.Default":  curses.A_NORMAL,
+		"style.SpellingError": curses.A_UNDERLINE
+        }
+
 def countTabSpaces(string):
     i = 0
     spaceCount = 0
@@ -188,21 +193,26 @@ def renderLines(scr, lines, scrollx, scrolly, lexer, formatter, currHighlightSty
     scr.clear()
     for lineNum in range(scrolly,min(len(lines) ,scrolly + curses.LINES )):
         line = " " + lines[lineNum]
+        #print(line)
         if lexer != None:
             highlightedText = highlight(line, lexer, formatter)
         else:
             highlightedText = line
-
+        
         stringArrToParse = re.split(f'\[{formatter.hash}|{formatter.hash}\]', highlightedText)
+        #print(stringArrToParse)
         skip = 0
         col = 15
         #Highlight Syntax using style
         #[{self.hash}{self.hash}{ttype}|{style}{self.hash}]{value}
+        styleAttr = curses.A_NORMAL
         for el in stringArrToParse:
             if el.startswith(f"{formatter.hash}Token"):
                 data = el.split('|')
                 token = data[0]
                 style = data[1]
+                styleAttr = text_style_dict[style]
+
                 tokenArr = token.split('.')
                 if 'Error' in tokenArr:
                     col = 12
@@ -217,7 +227,7 @@ def renderLines(scr, lines, scrollx, scrolly, lexer, formatter, currHighlightSty
                 #Convert token to curses Color
                 curses.init_pair(col+1, col, bgCol)
             else:
-                scr.addstr(lineNum,clamp(skip, scrollx,curses.COLS-LINE_NUM_WIDTH+scrollx), el, curses.color_pair(col+1))
+                scr.addstr(lineNum,clamp(skip, scrollx,curses.COLS-LINE_NUM_WIDTH+scrollx), el, curses.color_pair(col+1) | styleAttr)
                 skip += len(el)
 
 def initNavMenu(nav_win, nav_bgcolor) -> nav.NavBar:

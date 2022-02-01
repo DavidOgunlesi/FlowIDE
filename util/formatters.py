@@ -11,8 +11,9 @@ class TokenFormatter(Formatter):
 
     def format(self, tokensource, outfile):
         for ttype, value in tokensource:
-            misspelled = self.spell.unknown([value])
+            strings = value[1:].split(" ")
+            misspelled = self.spell.unknown(strings)
             style = "Style.Default"
-            if len(misspelled) >= 1:
-                style = "style.SpellingErsror"
+            if len(misspelled) >= 1 and 'Comment' in str(ttype):
+                style = "style.SpellingError"
             outfile.write(f"[{self.hash}{self.hash}{ttype}|{style}{self.hash}]{value}")
