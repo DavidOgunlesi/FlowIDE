@@ -3,3 +3,6 @@ testfiles/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+
+#IDE files
+.vscode/
