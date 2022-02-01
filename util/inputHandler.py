@@ -1,6 +1,6 @@
 
 from tkinter import LEFT
-
+import curses
 
 ESCAPE = 27
 UP = 259
@@ -11,3 +11,7 @@ ENTER = 10
 BACKSPACE = 8
 TAB = 9
 MOUSE = 539
+MOUSE_LEFT_CLICK = curses.BUTTON1_CLICKED
+MOUSE_RIGHT_CLICK = curses.BUTTON3_CLICKED
+MOUSE_SCROLL_UP = curses.BUTTON4_PRESSED
+MOUSE_SCROLL_DOWN = 2097152 # magic number :(

@@ -1,7 +1,9 @@
 import curses
+from lib2to3.pgen2 import token
 import time
 from curses import wrapper
 from curses.textpad import rectangle
+from tkinter.tix import Tree
 from turtle import goto
 import util.inputHandler as input
 import util.fileHandler as file
@@ -15,6 +17,8 @@ import traceback
 import pyperclip
 import lorem 
 import navBarUI as nav
+from spellchecker import SpellChecker
+
 TAB_SPACE = "   "
 MAX_FILE_LENGTH = 10000
 LINE_NUM_WIDTH = 7
@@ -24,7 +28,9 @@ FILE_TAB_HEIGHT = 2
 MENU_HEIGHT = NAVIGATION_MENU_BAR_HEIGHT + FILE_TAB_HEIGHT + 1
 NAVIGATION_MENU_BUTTON_SPACING = 2
 NAVIGATION_DROPDOWN_MENU_HEIGHT = 30
+
 quit = False
+spell = SpellChecker()
 
 def countTabSpaces(string):
     i = 0
@@ -178,7 +184,7 @@ def renderScrollBar(scr, scrolly, maxScrolly, color):
         scr.addstr(clamp(y, 0, curses.LINES-2), 0, symbol, color)
     scr.refresh(0,0,MENU_HEIGHT-1,curses.COLS-1,curses.LINES-1,curses.COLS-1)
 
-def renderLines(scr, lines, scrollx, scrolly, lexer, formatter, style, bgCol):
+def renderLines(scr, lines, scrollx, scrolly, lexer, formatter, currHighlightStyle, bgCol):
     scr.clear()
     for lineNum in range(scrolly,min(len(lines) ,scrolly + curses.LINES )):
         line = " " + lines[lineNum]
@@ -191,19 +197,23 @@ def renderLines(scr, lines, scrollx, scrolly, lexer, formatter, style, bgCol):
         skip = 0
         col = 15
         #Highlight Syntax using style
+        #[{self.hash}{self.hash}{ttype}|{style}{self.hash}]{value}
         for el in stringArrToParse:
             if el.startswith(f"{formatter.hash}Token"):
-                tokenArr = el.split('.')
+                data = el.split('|')
+                token = data[0]
+                style = data[1]
+                tokenArr = token.split('.')
                 if 'Error' in tokenArr:
                     col = 12
                 else:
                     for i in range(1,len(tokenArr)):
-                        subTokens = el.split('.')[i:]
+                        subTokens = tokenArr[i:]
                         currSearchKey = ""
                         for key in subTokens:
                             currSearchKey += f".{key}"
-                            if currSearchKey in style:
-                                col = style[currSearchKey]
+                            if currSearchKey in currHighlightStyle:
+                                col = currHighlightStyle[currSearchKey]
                 #Convert token to curses Color
                 curses.init_pair(col+1, col, bgCol)
             else:
@@ -296,10 +306,10 @@ def main(stdscr):
     COL_GRAY = curses.color_pair(103)
     #Load style
     with open('styles/defualt.json', 'r') as f:
-        style = json.load(f)
+        currHighlightStyle = json.load(f)
 
     curses.curs_set(2)
-    curses.mousemask(1)
+    curses.mousemask(-1)
     stdscr.clear()
     stdscr.nodelay(True)
     stdscr.bkgd(' ', COL_DEFAULT)  
@@ -349,6 +359,7 @@ def main(stdscr):
         print(len(lines))
         lexer = None
     formatter = TokenFormatter()
+
     #################
     #Main Render Loop
     #################
@@ -368,12 +379,19 @@ def main(stdscr):
         lines, x, y, scrollx, scrolly, relX, relY, renderUpdate = HandleInput(stdscr, key, lines, x, y, scrollx, scrolly, relX, relY, renderUpdate)
 
         if key == input.MOUSE:
-            _, x, y, _, _ = curses.getmouse()
-            CheckForButtonPress(nav_win, navbar, tab_bar, (x,y), COL_OFFDARK)
-            x -= LINE_NUM_WIDTH
-            y -= MENU_HEIGHT
-
-
+            _, xx, yy, _, context = curses.getmouse()
+            if context == input.MOUSE_LEFT_CLICK:
+                CheckForButtonPress(nav_win, navbar, tab_bar, (xx,yy), COL_OFFDARK)
+                x = xx - LINE_NUM_WIDTH
+                y = yy - MENU_HEIGHT
+            elif context == input.MOUSE_SCROLL_DOWN:
+                scrolly+=1
+                renderUpdate = True
+            elif context == input.MOUSE_SCROLL_UP:
+                scrolly-=1
+                renderUpdate = True
+        
+        scrolly = clamp(scrolly,0,MAX_FILE_LENGTH)
         if y > len(lines)-1:
             curses.beep()
 
@@ -384,7 +402,7 @@ def main(stdscr):
 
         #Render only when we need to
         if renderUpdate:
-            renderLines(content_display_pad, lines, scrollx, scrolly, lexer, formatter, style, bkgd)
+            renderLines(content_display_pad, lines, scrollx, scrolly, lexer, formatter, currHighlightStyle, bkgd)
             renderScrollBar(scroll_display_win, scrolly, max(0,len(lines)-1-curses.LINES), COL_OFFDARK)
         renderUpdate = False
         #renderNavgationBar(nav_win, ["File", "Edit", "Selection", "View", "Go", "Run", "Terminal", "Help"], COL_OFFDARK)
