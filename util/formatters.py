@@ -12,10 +12,10 @@ class TokenFormatter(Formatter):
 
     def format(self, tokensource, outfile):
         for ttype, value in tokensource:
-            regex = r"(\s|#)+"
-            strings = value.split(" ")
+            regex = r"(\s+|#)+"
+            #print(f"Formatted value: {value}|")
             strings = re.split(regex, value) #.split("[\\s@&.?$+-]+")
-            print(strings)
+            #print(f"Regex  split: {strings}")
 
             for _str in strings:
                 # if regez failed
